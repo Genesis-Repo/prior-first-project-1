@@ -1,27 +1,37 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
+// Importing necessary libraries from OpenZeppelin
 import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import "@openzeppelin/contracts/token/ERC721/utils/ERC721Holder.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 
+
 contract NFTMarketplace is ERC721Holder, Ownable {
-    uint256 public feePercentage;   // Fee percentage to be set by the marketplace owner
+    // State variable to store the fee percentage
+    uint256 public feePercentage;
     uint256 private constant PERCENTAGE_BASE = 100;
 
+    // Structure to store statistics of NFTs listed and sold
     struct Listing {
         address seller;
         uint256 price;
         bool isActive;
     }
 
+    // Mapping to store listings of NFTs
     mapping(address => mapping(uint256 => Listing)) private listings;
 
+    // Events to emit for different actions
     event NFTListed(address indexed seller, uint256 indexed tokenId, uint256 price);
     event NFTSold(address indexed seller, address indexed buyer, uint256 indexed tokenId, uint256 price);
     event NFTPriceChanged(address indexed seller, uint256 indexed tokenId, uint256 newPrice);
     event NFTUnlisted(address indexed seller, uint256 indexed tokenId);
+    
+    // Event to track statistics 
+    event NFTStatsUpdated(address indexed nftContract, uint256 totalListings, uint256 totalSales);
 
+    // Constructor to set the default fee percentage
     constructor() {
         feePercentage = 2;  // Setting the default fee percentage to 2%
     }
@@ -41,6 +51,9 @@ contract NFTMarketplace is ERC721Holder, Ownable {
         });
 
         emit NFTListed(msg.sender, tokenId, price);
+        
+        // Emit stats event after listing
+        emit NFTStatsUpdated(nftContract, getNumberOfListings(nftContract), getNumberOfSales(nftContract));
     }
 
     // Function to buy an NFT listed on the marketplace
@@ -64,6 +77,9 @@ contract NFTMarketplace is ERC721Holder, Ownable {
         listing.isActive = false;
 
         emit NFTSold(listing.seller, msg.sender, tokenId, listing.price);
+        
+        // Emit stats event after sale
+        emit NFTStatsUpdated(nftContract, getNumberOfListings(nftContract), getNumberOfSales(nftContract));
     }
 
     // Function to change the price of a listed NFT
@@ -86,6 +102,9 @@ contract NFTMarketplace is ERC721Holder, Ownable {
         IERC721(nftContract).safeTransferFrom(address(this), msg.sender, tokenId);
 
         emit NFTUnlisted(msg.sender, tokenId);
+        
+        // Emit stats event after unlisting
+        emit NFTStatsUpdated(nftContract, getNumberOfListings(nftContract), getNumberOfSales(nftContract));
     }
 
     // Function to set the fee percentage by the marketplace owner
@@ -95,10 +114,25 @@ contract NFTMarketplace is ERC721Holder, Ownable {
         feePercentage = newFeePercentage;
     }
 
-    // Optional features can be added here:
-    // 1. Ability to track statistics of the listing and sales of NFT on the marketplace
-    // 2. Auction functionality where users can bid and highest bidder wins
-    // 3. Escrow mechanism to hold funds until the buyer confirms receipt of the NFT
-    // 4. Rating and review system for buyers and sellers
-    // 5. Integration with external payment systems for multiple currency support
+    // Function to get the number of listings for a specific NFT contract
+    function getNumberOfListings(address nftContract) public view returns (uint256) {
+        uint256 count;
+        for (uint256 i = 0; i < IERC721(nftContract).balanceOf(address(this)); i++) {
+            if (listings[nftContract][i].isActive) {
+                count++;
+            }
+        }
+        return count;
+    }
+
+    // Function to get the number of sales for a specific NFT contract
+    function getNumberOfSales(address nftContract) public view returns (uint256) {
+        uint256 count;
+        for (uint256 i = 0; i < IERC721(nftContract).balanceOf(address(this)); i++) {
+            if (!listings[nftContract][i].isActive) {
+                count++;
+            }
+        }
+        return count;
+    }
 }
